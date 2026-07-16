@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D World Cup - Pro Keyboard Edition</title>
+    <style>
+        body { margin: 0; background: #111e15; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
+        #ui-layer { text-align: center; margin-bottom: 10px; z-index: 5; }
+        h1 { margin: 5px 0; font-size: 24px; text-transform: uppercase; color: #f1c40f; }
+        #tournament-info { font-size: 16px; background: rgba(0,0,0,0.6); padding: 8px 20px; border-radius: 20px; border: 1px solid #2ecc71; display: inline-block; }
+        #game-container { position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.6); border-radius: 5px; overflow: hidden; width: 900px; height: 500px; }
+        #canvas3d { width: 100%; height: 100%; display: block; }
+        #controls-guide { margin-top: 10px; font-size: 14px; color: #aaa; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; display: flex; gap: 20px; z-index: 5; }
+        .key { background: #444; color: #fff; padding: 2px 6px; border-radius: 3px; font-family: monospace; border-bottom: 2px solid #222; }
+        #screen-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; }
+        button { background: #2ecc71; color: white; border: none; padding: 12px 30px; font-size: 18px; font-weight: bold; border-radius: 5px; cursor: pointer; text-transform: uppercase; margin-top: 15px; }
+        #overlay-title { font-size: 32px; color: #f1c40f; margin-bottom: 10px; text-transform: uppercase; }
+        #overlay-desc { font-size: 18px; max-width: 500px; text-align: center; line-height: 1.5; color: #ddd; }
+        #hud-scores { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); font-size: 26px; font-weight: bold; color: #fff; text-shadow: 2px 2px 4px #000; text-align: center; pointer-events: none; z-index: 4; }
+        #hud-time { font-size: 16px; color: #f1c40f; font-family: monospace; margin-top: 5px; }
+    </style>
+    <script src="https://cloudflare.com"></script>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <h1>🏆 3D Pro World Cup 🏆</h1>
+        <div id="tournament-info">Loading Tournament...</div>
+    </div>
+
+    <div id="game-container">
+        <div id="hud-scores">
+            <span id="teams-text">ARGENTINA 0 - 0 GERMANY</span>
+            <div id="hud-time">TIME: 0' / 90'</div>
+        </div>
+        <div id="canvas3d"></div>
+        <div id="screen-overlay">
+            <div id="overlay-title">Soccer Skills World Cup</div>
+            <div id="overlay-desc">Control your active player closest to the ball. Move with Arrow Keys, tap Z to pass to an open teammate, or tap X to shoot at the goal!</div>
+            <button id="overlay-btn" onclick="handleOverlayClick()">Start Tournament Match</button>
+        </div>
+    </div>
+
+    <div id="controls-guide">
+        <div>🏃 <b>Move/Aim:</b> <span class="key">▲</span> <span class="key">▼</span> <span class="key">◀</span> <span class="key">▶</span> Arrow Keys</div>
+        <div>🚀 <b>Smart Shot:</b> <span class="key">X</span> Key</div>
+        <div>⚽ <b>Smart Pass:</b> <span class="key">Z</span> Key</div>
+    </div>
+    <script>
+        // Shared 3D Physics and State Registers
+        const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, z: false, x: false };
+        let playerTeam = "ARGENTINA";
+        let aiTeam = "GERMANY";
+        
+        const pitch = { width: 50, height: 30, goalTop: 6, goalBottom: -6 };
+        let ball = { x: 0, z: 0, vx: 0, vz: 0, radius: 0.6, friction: 0.985, mesh: null };
+        let activeRingMesh = null; // Ground ring indicator tracking the user's active player
+
+        class Player {
+            constructor(x, z, team, isAI, isGoalkeeper = false) {
+                this.startX = x; this.startZ = z;
+                this.x = x; this.z = z;
+                this.vx = 0; this.vz = 0;
+                this.team = team; this.isAI = isAI; this.isGoalkeeper = isGoalkeeper;
+                this.radius = 0.9;
+                this.speed = isGoalkeeper ? 0.18 : 0.32;
+                this.mesh = null;
+            }
+
+            createMesh(scene) {
+                const geometry = new THREE.CylinderGeometry(this.radius, this.radius, 2, 16);
+                const colorHex = this.team === playerTeam ? 0x2980b9 : 0xc0392b; 
+                const material = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.4 });
+                this.mesh = new THREE.Mesh(geometry, material);
+                this.mesh.position.set(this.x, 1, this.z);
+                this.mesh.castShadow = true;
+                scene.add(this.mesh);
+            }
+
+            reset() {
+                this.x = this.startX; this.z = this.startZ;
+                this.vx = 0; this.vz = 0;
+                if (this.mesh) this.mesh.position.set(this.x, 1, this.z);
+            }
+
+            update(isCurrentlyControlled) {
+                if (isCurrentlyControlled && !this.isGoalkeeper) {
+                    this.vx = 0; this.vz = 0;
+                    if (keys.ArrowUp) this.vz = -this.speed;
+                    if (keys.ArrowDown) this.vz = this.speed;
+                    if (keys.ArrowLeft) this.vx = -this.speed;
+                    if (keys.ArrowRight) this.vx = this.speed;
+                } else {
+                    let targetX = this.startX, targetZ = this.startZ;
+
+                    if (this.isGoalkeeper) {
+                        targetZ = ball.z;
+                        if (targetZ < pitch.goalBottom - 0.5) targetZ = pitch.goalBottom - 0.5;
+                        if (targetZ > pitch.goalTop + 0.5) targetZ = pitch.goalTop + 0.5;
+                        targetX = this.startX + (ball.x - this.startX) * 0.15;
+                    } else {
+                        let distanceToBall = Math.hypot(ball.x - this.x, ball.z - this.z);
+                        if (distanceToBall < 18) { targetX = ball.x; targetZ = ball.z; }
+                    }
+
+                    let angle = Math.atan2(targetZ - this.z, targetX - this.x);
+                    let dist = Math.hypot(targetX - this.x, targetZ - this.z);
+
+                    if (dist > 0.5) {
+                        this.vx = Math.cos(angle) * this.speed;
+                        this.vz = Math.sin(angle) * this.speed;
+                    } else {
+                        this.vx = 0; this.vy = 0;
+                    }
+
+                    if (this.team !== playerTeam && Math.hypot(ball.x - this.x, ball.z - this.z) < this.radius + ball.radius + 0.2) {
+                        let targetGoalX = -pitch.width / 2; 
+                        let shootAngle = Math.atan2(0 - this.z, targetGoalX - this.x);
+                        ball.vx = Math.cos(shootAngle) * 0.8; ball.vz = Math.sin(shootAngle) * 0.8;
+                    }
+                }
+
+                this.x += this.vx; this.z += this.vz;
+
+                const halfW = pitch.width / 2, halfH = pitch.height / 2;
+                if (this.x < -halfW + this.radius) this.x = -halfW + this.radius;
+                if (this.x > halfW - this.radius) this.x = halfW - this.radius;
+                if (this.z < -halfH + this.radius) this.z = -halfH + this.radius;
+                if (this.z > halfH - this.radius) this.z = halfH - this.radius;
+
+                if (this.mesh) this.mesh.position.set(this.x, 1, this.z);
+            }
+
+            performSmartShot() {
+                let targetGoalX = pitch.width / 2; 
+                let angle = Math.atan2(0 - this.z, targetGoalX - this.x);
+                if (keys.ArrowUp) angle -= 0.1;
+                if (keys.ArrowDown) angle += 0.1;
+                ball.vx = Math.cos(angle) * 1.5; 
+                ball.vz = Math.sin(angle) * 1.5;
+            }
+
+            performSmartPass(teammates) {
+                let openPassTarget = null;
+                let closestDist = Infinity;
+
+                teammates.forEach(teamMember => {
+                    if (teamMember !== this && !teamMember.isGoalkeeper) {
+                        let dist = Math.hypot(teamMember.x - this.x, teamMember.z - this.z);
+                        if (dist < closestDist) { closestDist = dist; openPassTarget = teamMember; }
+                    }
+                });
+
+                if (openPassTarget) {
+                    let angle = Math.atan2(openPassTarget.z - this.z, openPassTarget.x - this.x);
+                    ball.vx = Math.cos(angle) * 0.9; 
+                    ball.vz = Math.sin(angle) * 0.9;
+                }
+            }
+        }
+    </script>
+    <script>
+        let scene, camera, renderer, light;
+        const container = document.getElementById('canvas3d');
+        const overlay = document.getElementById('screen-overlay');
+        const overlayTitle = document.getElementById('overlay-title');
+        const overlayDesc = document.getElementById('overlay-desc');
+        const overlayBtn = document.getElementById('overlay-btn');
+
+        let gameState = "MENU", currentRound = 0; 
+        const rounds = ["QUARTER-FINALS", "SEMI-FINALS", "WORLD CUP FINAL"];
+        const teamsPool = ["ARGENTINA", "GERMANY", "BRAZIL", "FRANCE", "ITALY", "SPAIN", "ENGLAND", "MOROCCO"];
+        let tournamentBracket = [], players = [], matchTimer = 0;
+        let score = { player: 0, ai: 0 };
+        const matchDuration = 2700; 
+        let activePlayerIndex = 0; 
+
+        function init3D() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x111e15);
+
+            camera = new THREE.PerspectiveCamera(40, 900 / 500, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(900, 500);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+            scene.add(ambientLight);
+            light = new THREE.DirectionalLight(0xffffff, 0.85);
+            light.position.set(0, 40, 10);
+            light.castShadow = true;
+            scene.add(light);
+
+            const floorGeo = new THREE.PlaneGeometry(pitch.width, pitch.height);
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x27ae60, roughness: 0.7 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            const ballGeo = new THREE.SphereGeometry(ball.radius, 16, 16);
+            const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+            ball.mesh = new THREE.Mesh(ballGeo, ballMat);
+            ball.mesh.position.set(0, ball.radius, 0);
+            ball.mesh.castShadow = true;
+            scene.add(ball.mesh);
+
+            const ringGeo = new THREE.RingGeometry(1.0, 1.25, 16);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0xf1c40f, side: THREE.DoubleSide });
+            activeRingMesh = new THREE.Mesh(ringGeo, ringMat);
+            activeRingMesh.rotation.x = Math.PI / 2;
+            activeRingMesh.position.y = 0.05;
+            scene.add(activeRingMesh);
+
+            const goalGeo = new THREE.BoxGeometry(1, 4, pitch.goalTop - pitch.goalBottom);
+            const goalMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
+            const leftGoal = new THREE.Mesh(goalGeo, goalMat); leftGoal.position.set(-pitch.width/2, 2, 0); scene.add(leftGoal);
+            const rightGoal = new THREE.Mesh(goalGeo, goalMat); rightGoal.position.set(pitch.width/2, 2, 0); scene.add(rightGoal);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key in keys) keys[e.key] = true;
+            if (gameState !== "PLAYING") return;
+
+            let userControlledPlayer = players[activePlayerIndex];
+            let ballDist = Math.hypot(ball.x - userControlledPlayer.x, ball.z - userControlledPlayer.z);
+            let hasPossession = ballDist < userControlledPlayer.radius + ball.radius + 0.8;
+
+            if (e.key.toLowerCase() === 'x' && hasPossession) userControlledPlayer.performSmartShot();
+            if (e.key.toLowerCase() === 'z' && hasPossession) {
+                let userTeamSquad = players.filter(p => p.team === playerTeam);
+                userControlledPlayer.performSmartPass(userTeamSquad);
+            }
+        });
+
+        window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
+
+        function runDynamicPlayerSwitching() {
+            let userTeamIndices = [];
+            players.forEach((p, idx) => { if (p.team === playerTeam && !p.isGoalkeeper) userTeamIndices.push(idx); });
+
+            let bestIndex = userTeamIndices[0];
+            let closestDistance = Infinity;
+
+            userTeamIndices.forEach(idx => {
+                let dist = Math.hypot(ball.x - players[idx].x, ball.z - players[idx].z);
+                if (dist < closestDistance) { closestDistance = dist; bestIndex = idx; }
+            });
+
+            activePlayerIndex = bestIndex;
+            let activeAthlete = players[activePlayerIndex];
+            if (activeAthlete) { activeRingMesh.position.set(activeAthlete.x, 0.05, activeAthlete.z); activeRingMesh.visible = true; }
+        }
+
+        function setupTournament() {
+            let shuffled = [...teamsPool].sort(() => 0.5 - Math.random());
+            playerTeam = shuffled[0]; tournamentBracket = shuffled;
+            advanceTournamentRound();
+        }
+
+        function advanceTournamentRound() {
+            aiTeam = tournamentBracket[currentRound + 1];
+            document.getElementById('tournament-info').innerText = `🏆 ROU: ${rounds[currentRound]} | Match: ${playerTeam} VS ${aiTeam}`;
+            score.player = 0; score.ai = 0; matchTimer = 0; resetFormations();
+        }
+
+        function resetFormations() {
+            ball.x = 0; ball.z = 0; ball.vx = 0; ball.vz = 0;
+            if (ball.mesh) ball.mesh.position.set(0, ball.radius, 0);
+            players.forEach(p => { if (p.mesh) scene.remove(p.mesh); });
+
+            players = [
+                new Player(-12, 0, playerTeam, false), new Player(-6, -6, playerTeam, true), new Player(-6, 6, playerTeam, true), new Player(-23, 0, playerTeam, true, true),
+                new Player(12, 0, aiTeam, true), new Player(6, -6, aiTeam, true), new Player(6, 6, aiTeam, true), new Player(23, 0, aiTeam, true, true)
+            ];
+            players.forEach(p => p.createMesh(scene));
+            activePlayerIndex = 0;
+        }
+
+        function handleOverlayClick() {
+            if (gameState === "MENU") { setupTournament(); gameState = "PLAYING"; overlay.style.display = "none"; }
+            else if (gameState === "GOAL_SCORED") { resetFormations(); gameState = "PLAYING"; overlay.style.display = "none"; }
+            else if (gameState === "GAME_OVER") { currentRound = 0; gameState = "MENU"; overlayTitle.innerText = "🏆 WORLD CUP 🏆"; overlayBtn.innerText = "Play Match"; }
+        }
+
+        function triggerGoalEvent(winner) {
+            gameState = "GOAL_SCORED"; overlay.style.display = "flex"; overlayTitle.innerText = "⚽ GOOOAALLL!! ⚽";
+            if (winner === playerTeam) { score.player++; overlayDesc.innerText = `${playerTeam} scores a brilliant built-up attack!`; }
+            else { score.ai++; overlayDesc.innerText = `${aiTeam} scores on a defensive counter!`; }
+            overlayBtn.innerText = "Next Kickoff";
+        }
+
+        function triggerMatchEnd() {
+            gameState = "GAME_OVER"; overlay.style.display = "flex";
+            if (score.player > score.ai) {
+                if (currentRound < 2) { currentRound++; overlayTitle.innerText = "MATCH VICTORY!"; overlayDesc.innerText = "Advance up the bracket layout."; overlayBtn.innerText = "Next Round"; advanceTournamentRound(); }
+                else { overlayTitle.innerText = "🥇 CUP CHAMPIONS! 🥇"; overlayDesc.innerText = "You won the World Cup!"; overlayBtn.innerText = "Restart Tourney"; }
+            } else { overlayTitle.innerText = "❌ ELIMINATED! ❌"; overlayDesc.innerText = "Your team is out of the Cup."; overlayBtn.innerText = "Try Again"; }
+        }
+
+        function updatePhysics() {
+            if (gameState !== "PLAYING") return;
+            matchTimer++; if (matchTimer >= matchDuration) { triggerMatchEnd(); return; }
+            
+            runDynamicPlayerSwitching();
+            players.forEach((p, idx) => p.update(idx === activePlayerIndex));
+
+            ball.x += ball.vx; ball.z += ball.vz;
+            ball.vx *= ball.friction; ball.vz *= ball.friction;
+            if (ball.mesh) ball.mesh.position.set(ball.x, ball.radius, ball.z);
+
+            const halfW = pitch.width / 2, halfH = pitch.height / 2;
+            if (ball.z - ball.radius < -halfH) { ball.z = -halfH + ball.radius; ball.vz *= -1; }
+            if (ball.z + ball.radius > halfH) { ball.z = halfH - ball.radius; ball.vz *= -1; }
+
+            if (ball.x < -halfW) {
+                if (ball.z > pitch.goalBottom && ball.z < pitch.goalTop) triggerGoalEvent(aiTeam);
+                else { ball.x = -halfW + ball.radius; ball.vx *= -1; }
+            }
+            if (ball.x > halfW) {
+                if (ball.z > pitch.goalBottom && ball.z < pitch.goalTop) triggerGoalEvent(playerTeam);
+                else { ball.x = halfW - ball.radius; ball.vx *= -1; }
+            }
+
+            players.forEach(p => {
+                let dist = Math.hypot(ball.x - p.x, ball.z - p.z), minDist = p.radius + ball.radius;
+                if (dist < minDist) {
+                    let angle = Math.atan2(ball.z - p.z, ball.x - p.x);
+                    ball.x = p.x + Math.cos(angle) * minDist; ball.z = p.z + Math.sin(angle) * minDist;
+                    ball.vx += p.vx * 0.38; ball.vz += p.vz * 0.38; 
+                }
+            });
+        }
+
+        function updateHUD() {
+            document.getElementById('teams-text').innerText = `${playerTeam} ${score.player} - ${score.ai} ${aiTeam}`;
+            document.getElementById('hud-time').innerText = `TIME: ${Math.floor((matchTimer / matchDuration) * 90)}' / 90'`;
+        }
+        function animate() {
+            requestAnimationFrame(animate);
+            updatePhysics();
+            updateHUD();
+
+            // Tracking dynamic camera position rig
+            const controlledAthlete = players[activePlayerIndex];
+            if (controlledAthlete && controlledAthlete.mesh) {
+                camera.position.set(controlledAthlete.x - 14, 15, controlledAthlete.z); 
+                camera.lookAt(controlledAthlete.x + 3, 1, controlledAthlete.z); 
+            } else {
+                camera.position.set(0, 24, 20); 
+                camera.lookAt(0, 0, 0);
+            }
+
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+
+        // Fire initial launch frame components
+        init3D();
+        animate();
