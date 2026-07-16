@@ -3,28 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D World Cup - Soccer Skills Edition</title>
+    <title>3D World Cup - Optimized</title>
     <style>
         body { margin: 0; background: #0f1c12; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
         #ui-layer { text-align: center; margin-bottom: 5px; z-index: 5; }
         h1 { margin: 2px 0; font-size: 26px; text-transform: uppercase; color: #f1c40f; letter-spacing: 1px; }
-        #game-container { position: relative; box-shadow: 0 20px 50px rgba(0,0,0,0.7); border-radius: 8px; overflow: hidden; width: 900px; height: 500px; background: #000; }
-        #canvas3d { width: 100%; height: 100%; display: block; z-index: 1; }
-        
-        /* FIXED: Added z-index: 20 to guarantee menus float on top of everything else */
-        #screen-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, rgba(16,28,19,0.95) 0%, rgba(20,40,25,0.9) 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20; transition: 0.3s ease; }
-        #menu-container { text-align: center; max-width: 600px; display: flex; flex-direction: column; align-items: center; z-index: 21; }
+        #game-container { position: relative; box-shadow: 0 20px 50px rgba(0,0,0,0.7); border-radius: 8px; overflow: hidden; width: 900px; height: 500px; background: #111e15; }
+        #canvas3d { width: 100%; height: 100%; display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+        #screen-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, rgba(16,28,19,0.98) 0%, rgba(20,40,25,0.95) 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 999; }
+        #menu-container { text-align: center; max-width: 600px; display: flex; flex-direction: column; align-items: center; pointer-events: auto; }
         .menu-title { font-size: 38px; color: #f1c40f; text-transform: uppercase; margin-bottom: 5px; font-weight: bold; text-shadow: 0 4px 8px rgba(0,0,0,0.5); }
         .menu-subtitle { font-size: 16px; color: #bdc3c7; margin-bottom: 25px; max-width: 450px; line-height: 1.4; }
-        
         #team-selector-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 25px; width: 100%; max-width: 520px; max-height: 220px; overflow-y: auto; padding: 5px; }
         .team-card { background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 12px; font-size: 14px; font-weight: bold; text-transform: uppercase; cursor: pointer; transition: 0.2s ease; text-align: center; color: #fff; }
         .team-card:hover { background: rgba(46, 204, 113, 0.2); border-color: #2ecc71; transform: translateY(-2px); }
         .team-card.selected { background: #2ecc71; border-color: #27ae60; color: #fff; box-shadow: 0 0 15px rgba(46,204,113,0.5); }
-        
-        button { background: #f1c40f; color: #111; border: none; padding: 14px 40px; font-size: 18px; font-weight: bold; border-radius: 30px; cursor: pointer; text-transform: uppercase; box-shadow: 0 5px 15px rgba(241,196,15,0.4); transition: 0.2s; min-width: 200px; z-index: 22; }
+        button { background: #f1c40f; color: #111; border: none; padding: 14px 40px; font-size: 18px; font-weight: bold; border-radius: 30px; cursor: pointer; text-transform: uppercase; box-shadow: 0 5px 15px rgba(241,196,15,0.4); transition: 0.2s; min-width: 200px; pointer-events: auto; position: relative; }
         button:hover { background: #f39c12; transform: scale(1.05); }
-        
         #hud-scores { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: bold; color: #fff; text-shadow: 2px 2px 4px #000; text-align: center; pointer-events: none; z-index: 4; display: none; }
         #hud-time { font-size: 15px; color: #f1c40f; font-family: monospace; margin-top: 3px; }
         #controls-guide { margin-top: 8px; font-size: 13px; color: #aaa; background: rgba(0,0,0,0.3); padding: 8px 15px; border-radius: 5px; display: flex; gap: 15px; z-index: 5; }
@@ -33,18 +28,13 @@
     <script src="https://cloudflare.com"></script>
 </head>
 <body>
-
-    <div id="ui-layer">
-        <h1>🏆 SOCCER SKILLS: WORLD CUP 🏆</h1>
-    </div>
-
+    <div id="ui-layer"><h1>🏆 SOCCER SKILLS: WORLD CUP 🏆</h1></div>
     <div id="game-container">
         <div id="hud-scores">
             <span id="teams-text">ARGENTINA 0 - 0 GERMANY</span>
             <div id="hud-time">TIME: 0' / 90'</div>
         </div>
         <div id="canvas3d"></div>
-        
         <div id="screen-overlay">
             <div id="menu-container">
                 <div id="overlay-title" class="menu-title">Select Your Nation</div>
@@ -54,63 +44,44 @@
             </div>
         </div>
     </div>
-
     <div id="controls-guide">
         <div>🏃 <b>Move Player:</b> <span class="key">▲</span> <span class="key">▼</span> <span class="key">◀</span> <span class="key">▶</span> Arrow Keys</div>
         <div>🚀 <b>Goal Shot:</b> <span class="key">X</span> Key (When near ball)</div>
         <div>⚽ <b>Team Pass:</b> <span class="key">Z</span> Key (When near ball)</div>
     </div>
-
     <script>
         const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, z: false, x: false };
-        let playerTeam = "ARGENTINA";
-        let aiTeam = "GERMANY";
-        
+        let playerTeam = "ARGENTINA"; let aiTeam = "GERMANY";
         const pitch = { width: 50, height: 30, goalTop: 6, goalBottom: -6 };
         let ball = { x: 0, z: 0, vx: 0, vz: 0, radius: 0.55, friction: 0.986, mesh: null };
-        let activeRingMesh = null; 
-
+        let activeRingMesh = null;
         const nationsPool = ["ARGENTINA", "GERMANY", "BRAZIL", "FRANCE", "ITALY", "SPAIN", "ENGLAND", "MOROCCO", "PORTUGAL", "JAPAN", "MEXICO", "CROATIA"];
-
         class Player {
             constructor(x, z, team, isAI, isGoalkeeper = false) {
-                this.startX = x; this.startZ = z;
-                this.x = x; this.z = z;
-                this.vx = 0; this.vz = 0;
+                this.startX = x; this.startZ = z; this.x = x; this.z = z; this.vx = 0; this.vz = 0;
                 this.team = team; this.isAI = isAI; this.isGoalkeeper = isGoalkeeper;
-                this.radius = 0.9;
-                this.speed = isGoalkeeper ? 0.16 : 0.30;
-                this.mesh = null;
+                this.radius = 0.9; this.speed = isGoalkeeper ? 0.16 : 0.30; this.mesh = null;
             }
-
             createMesh(scene) {
                 const geometry = new THREE.CylinderGeometry(this.radius, this.radius, 2, 16);
-                const colorHex = this.team === playerTeam ? 0x2980b9 : 0xc0392b; 
+                const colorHex = this.team === playerTeam ? 0x2980b9 : 0xc0392b;
                 const material = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.45 });
-                this.mesh = new THREE.Mesh(geometry, material);
-                this.mesh.position.set(this.x, 1, this.z);
-                this.mesh.castShadow = true;
-                scene.add(this.mesh);
+                this.mesh = new THREE.Mesh(geometry, material); this.mesh.position.set(this.x, 1, this.z);
+                this.mesh.castShadow = true; scene.add(this.mesh);
             }
-
             reset() {
-                this.x = this.startX; this.z = this.startZ;
-                this.vx = 0; this.vz = 0;
+                this.x = this.startX; this.z = this.startZ; this.vx = 0; this.vz = 0;
                 if (this.mesh) this.mesh.position.set(this.x, 1, this.z);
             }
-
             update(isCurrentlyControlled) {
                 if (isCurrentlyControlled && !this.isGoalkeeper) {
                     this.vx = 0; this.vz = 0;
-                    if (keys.ArrowUp) this.vz = -this.speed;
-                    if (keys.ArrowDown) this.vz = this.speed;
-                    if (keys.ArrowLeft) this.vx = -this.speed;
-                    if (keys.ArrowRight) this.vx = this.speed;
+                    if (keys.ArrowUp) this.vz = -this.speed; if (keys.ArrowDown) this.vz = this.speed;
+                    if (keys.ArrowLeft) this.vx = -this.speed; if (keys.ArrowRight) this.vx = this.speed;
                 } else {
                     let targetX = this.startX, targetZ = this.startZ;
                     if (this.isGoalkeeper) {
-                        targetZ = ball.z;
-                        if (targetZ < pitch.goalBottom - 0.5) targetZ = pitch.goalBottom - 0.5;
+                        targetZ = ball.z; if (targetZ < pitch.goalBottom - 0.5) targetZ = pitch.goalBottom - 0.5;
                         if (targetZ > pitch.goalTop + 0.5) targetZ = pitch.goalTop + 0.5;
                         targetX = this.startX + (ball.x - this.startX) * 0.15;
                     } else {
@@ -119,36 +90,28 @@
                     }
                     let angle = Math.atan2(targetZ - this.z, targetX - this.x);
                     let dist = Math.hypot(targetX - this.x, targetZ - this.z);
-                    if (dist > 0.5) { this.vx = Math.cos(angle) * this.speed; this.vz = Math.sin(angle) * this.speed; } 
+                    if (dist > 0.5) { this.vx = Math.cos(angle) * this.speed; this.vz = Math.sin(angle) * this.speed; }
                     else { this.vx = 0; this.vz = 0; }
-
                     if (this.team !== playerTeam && Math.hypot(ball.x - this.x, ball.z - this.z) < this.radius + ball.radius + 0.2) {
-                        let targetGoalX = -pitch.width / 2; 
-                        let shootAngle = Math.atan2(0 - this.z, targetGoalX - this.x);
+                        let targetGoalX = -pitch.width / 2; let shootAngle = Math.atan2(0 - this.z, targetGoalX - this.x);
                         ball.vx = Math.cos(shootAngle) * 0.78; ball.vz = Math.sin(shootAngle) * 0.78;
                     }
                 }
                 this.x += this.vx; this.z += this.vz;
                 const halfW = pitch.width / 2, halfH = pitch.height / 2;
-                if (this.x < -halfW + this.radius) this.x = -halfW + this.radius;
-                if (this.x > halfW - this.radius) this.x = halfW - this.radius;
-                if (this.z < -halfH + this.radius) this.z = -halfH + this.radius;
-                if (this.z > halfH - this.radius) this.z = halfH - this.radius;
+                if (this.x < -halfW + this.radius) this.x = -halfW + this.radius; if (this.x > halfW - this.radius) this.x = halfW - this.radius;
+                if (this.z < -halfH + this.radius) this.z = -halfH + this.radius; if (this.z > halfH - this.radius) this.z = halfH - this.radius;
                 if (this.mesh) this.mesh.position.set(this.x, 1, this.z);
             }
-
             performSmartShot() {
-                let targetGoalX = pitch.width / 2; 
-                let angle = Math.atan2(0 - this.z, targetGoalX - this.x);
+                let targetGoalX = pitch.width / 2; let angle = Math.atan2(0 - this.z, targetGoalX - this.x);
                 ball.vx = Math.cos(angle) * 1.5; ball.vz = Math.sin(angle) * 1.5;
             }
-
             performSmartPass(teammates) {
                 let openPassTarget = null; let closestDist = Infinity;
                 teammates.forEach(t => {
                     if (t !== this && !t.isGoalkeeper) {
-                        let d = Math.hypot(t.x - this.x, t.z - this.z);
-                        if (d < closestDist) { closestDist = d; openPassTarget = t; }
+                        let d = Math.hypot(t.x - this.x, t.z - this.z); if (d < closestDist) { closestDist = d; openPassTarget = t; }
                     }
                 });
                 if (openPassTarget) {
@@ -166,40 +129,29 @@
         const overlayDesc = document.getElementById('overlay-desc');
         const overlayBtn = document.getElementById('overlay-btn');
         const scoresHud = document.getElementById('hud-scores');
-
-        let gameState = "MENU", currentRound = 0; 
-        const rounds = ["QUARTER-FINALS", "SEMI-FINALS", "WORLD CUP FINAL"];
-        let tournamentBracket = [], players = [], matchTimer = 0;
-        let score = { player: 0, ai: 0 };
-        const matchDuration = 2700; let activePlayerIndex = 0; 
-
+        let gameState = "MENU", currentRound = 0; const rounds = ["QUARTER-FINALS", "SEMI-FINALS", "WORLD CUP FINAL"];
+        let tournamentBracket = [], players = [], matchTimer = 0; let score = { player: 0, ai: 0 };
+        const matchDuration = 2700; let activePlayerIndex = 0;
         function init3D() {
             scene = new THREE.Scene(); scene.background = new THREE.Color(0x111e15);
             camera = new THREE.PerspectiveCamera(40, 900 / 500, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(900, 500); renderer.shadowMap.enabled = true;
+            renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(900, 500); renderer.shadowMap.enabled = true;
             container.appendChild(renderer.domElement);
-
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.65); scene.add(ambientLight);
             light = new THREE.DirectionalLight(0xffffff, 0.85); light.position.set(0, 40, 10); light.castShadow = true; scene.add(light);
-
             const floorGeo = new THREE.PlaneGeometry(pitch.width, pitch.height);
             const floorMat = new THREE.MeshStandardMaterial({ color: 0x27ae60, roughness: 0.7 });
             const floor = new THREE.Mesh(floorGeo, floorMat); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
-
             const ballGeo = new THREE.SphereGeometry(ball.radius, 16, 16);
             const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
             ball.mesh = new THREE.Mesh(ballGeo, ballMat); ball.mesh.position.set(0, ball.radius, 0); ball.mesh.castShadow = true; scene.add(ball.mesh);
-
             const ringGeo = new THREE.RingGeometry(1.0, 1.25, 16);
             const ringMat = new THREE.MeshBasicMaterial({ color: 0xf1c40f, side: THREE.DoubleSide });
             activeRingMesh = new THREE.Mesh(ringGeo, ringMat); activeRingMesh.rotation.x = Math.PI / 2; activeRingMesh.position.y = 0.05; scene.add(activeRingMesh);
-
             const goalGeo = new THREE.BoxGeometry(1, 4, pitch.goalTop - pitch.goalBottom); const goalMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
             const leftGoal = new THREE.Mesh(goalGeo, goalMat); leftGoal.position.set(-pitch.width/2, 2, 0); scene.add(leftGoal);
             const rightGoal = new THREE.Mesh(goalGeo, goalMat); rightGoal.position.set(pitch.width/2, 2, 0); scene.add(rightGoal);
         }
-
         function populateTeamSelectionMenu() {
             const grid = document.getElementById('team-selector-grid'); grid.innerHTML = "";
             nationsPool.forEach(nation => {
@@ -208,7 +160,6 @@
                 grid.appendChild(card);
             });
         }
-
         window.addEventListener('keydown', (e) => {
             if (e.key in keys) keys[e.key] = true; if (gameState !== "PLAYING") return;
             let p1 = players[activePlayerIndex]; let dist = Math.hypot(ball.x - p1.x, ball.z - p1.z);
@@ -217,24 +168,21 @@
             if (e.key.toLowerCase() === 'z' && hasBall) p1.performSmartPass(players.filter(p => p.team === playerTeam));
         });
         window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
-
         function runDynamicPlayerSwitching() {
             let userTeamIndices = []; players.forEach((p, idx) => { if (p.team === playerTeam && !p.isGoalkeeper) userTeamIndices.push(idx); });
             let bestIndex = userTeamIndices || 0; let closestDistance = Infinity;
             userTeamIndices.forEach(idx => {
-                let dist = Math.hypot(ball.x - players[idx].x, ball.z - players[idx].z);
-                if (dist < closestDistance) { closestDistance = dist; bestIndex = idx; }
+                let dist = Math.hypot(ball.x - players[idx].x, ball.z - players[idx].z); if (dist < closestDistance) { closestDistance = dist; bestIndex = idx; }
             });
             activePlayerIndex = bestIndex; let activeAthlete = players[activePlayerIndex];
             if (activeAthlete) { activeRingMesh.position.set(activeAthlete.x, 0.05, activeAthlete.z); activeRingMesh.visible = true; }
         }
-
         function startTournamentMatch() {
             let opponents = nationsPool.filter(n => n !== playerTeam); aiTeam = opponents[Math.floor(Math.random() * opponents.length)];
+            document.getElementById('teams-text').innerText = `${playerTeam} 0 - 0 ${aiTeam}`;
             document.getElementById('tournament-info').innerText = `🏆 ROU: ${rounds[currentRound]} | Match: ${playerTeam} VS ${aiTeam}`;
             score.player = 0; score.ai = 0; matchTimer = 0; scoresHud.style.display = "block"; resetFormations();
         }
-
         function resetFormations() {
             ball.x = 0; ball.z = 0; ball.vx = 0; ball.vz = 0; if (ball.mesh) ball.mesh.position.set(0, ball.radius, 0);
             players.forEach(p => { if (p.mesh) scene.remove(p.mesh); });
@@ -244,19 +192,16 @@
             ];
             players.forEach(p => p.createMesh(scene)); activePlayerIndex = 0;
         }
-
         function handleOverlayAction() {
             if (gameState === "MENU") { startTournamentMatch(); gameState = "PLAYING"; overlay.style.display = "none"; }
             else if (gameState === "GOAL_SCORED") { resetFormations(); gameState = "PLAYING"; overlay.style.display = "none"; }
             else if (gameState === "GAME_OVER") { currentRound = 0; gameState = "MENU"; overlayTitle.innerText = "Select Your Nation"; overlayBtn.innerText = "Play Match"; document.getElementById('team-selector-grid').style.display = "grid"; populateTeamSelectionMenu(); }
         }
-
         function triggerGoalEvent(winner) {
             gameState = "GOAL_SCORED"; overlay.style.display = "flex"; overlayTitle.innerText = "⚽ GOOOAALLL!! ⚽"; document.getElementById('team-selector-grid').style.display = "none";
             if (winner === playerTeam) { score.player++; overlayDesc.innerText = `${playerTeam} scores!`; } else { score.ai++; overlayDesc.innerText = `${aiTeam} scores!`; }
             overlayBtn.innerText = "Next Kickoff";
         }
-
         function triggerMatchEnd() {
             gameState = "GAME_OVER"; overlay.style.display = "flex"; document.getElementById('team-selector-grid').style.display = "none";
             if (score.player > score.ai) {
@@ -264,38 +209,32 @@
                 else { overlayTitle.innerText = "🥇 CUP CHAMPIONS! 🥇"; overlayBtn.innerText = "Restart Tourney"; }
             } else { overlayTitle.innerText = "❌ ELIMINATED! ❌"; overlayBtn.innerText = "Try Again"; }
         }
-
         function updatePhysics() {
             if (gameState !== "PLAYING") return;
             matchTimer++; if (matchTimer >= matchDuration) { triggerMatchEnd(); return; }
             runDynamicPlayerSwitching(); players.forEach((p, idx) => p.update(idx === activePlayerIndex));
             ball.x += ball.vx; ball.z += ball.vz; ball.vx *= ball.friction; ball.vz *= ball.friction; if (ball.mesh) ball.mesh.position.set(ball.x, ball.radius, ball.z);
-
             const halfW = pitch.width / 2, halfH = pitch.height / 2;
             if (ball.z - ball.radius < -halfH) { ball.z = -halfH + ball.radius; ball.vz *= -1; } if (ball.z + ball.radius > halfH) { ball.z = halfH - ball.radius; ball.vz *= -1; }
             if (ball.x < -halfW) { if (ball.z > pitch.goalBottom && ball.z < pitch.goalTop) triggerGoalEvent(aiTeam); else { ball.x = -halfW + ball.radius; ball.vx *= -1; } }
             if (ball.x > halfW) { if (ball.z > pitch.goalBottom && ball.z < pitch.goalTop) triggerGoalEvent(playerTeam); else { ball.x = halfW - ball.radius; ball.vx *= -1; } }
-
             players.forEach(p => {
                 let dist = Math.hypot(ball.x - p.x, ball.z - p.z), minDist = p.radius + ball.radius;
                 if (dist < minDist) {
                     let angle = Math.atan2(ball.z - p.z, ball.x - p.x); ball.x = p.x + Math.cos(angle) * minDist; ball.z = p.z + Math.sin(angle) * minDist;
-                    ball.vx += p.vx * 0.38; ball.vz += p.vz * 0.38; 
+                    ball.vx += p.vx * 0.38; ball.vz += p.vz * 0.38;
                 }
             });
         }
-
         function animate() {
             requestAnimationFrame(animate); updatePhysics();
             document.getElementById('teams-text').innerText = `${playerTeam} ${score.player} - ${score.ai} ${aiTeam}`;
             document.getElementById('hud-time').innerText = `TIME: ${Math.floor((matchTimer / matchDuration) * 90)}' / 90'`;
-
             const user = players[activePlayerIndex];
             if (user && user.mesh) { camera.position.set(user.x - 14, 15, user.z); camera.lookAt(user.x + 3, 1, user.z); }
             else { camera.position.set(0, 24, 20); camera.lookAt(0, 0, 0); }
             if (renderer && scene && camera) renderer.render(scene, camera);
         }
-
         init3D(); populateTeamSelectionMenu(); animate();
     </script>
 </body>
